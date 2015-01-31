@@ -77,6 +77,7 @@
 #define USB_CLASS_CDC_DATA		0x0a
 #define USB_CLASS_CSCID			0x0b
 #define USB_CLASS_CONTENT_SEC		0x0d
+#define USB_CLASS_MISC			0xef
 #define USB_CLASS_APP_SPEC		0xfe
 #define USB_CLASS_VENDOR_SPEC		0xff
 
@@ -89,6 +90,7 @@
 #define USB_CDC_SUBCLASS_ETHERNET	0x06
 
 #define USB_CDC_PROTO_NONE		0
+#define USB_CDC_ACM_PROTO_AT_V25TER	1
 #define USB_CDC_ACM_PROTO_VENDOR	0xff
 
 #define USB_CDC_HEADER_TYPE		0x00	/* header_desc */
@@ -96,6 +98,14 @@
 #define USB_CDC_ACM_TYPE		0x02	/* acm_descriptor */
 #define USB_CDC_UNION_TYPE		0x06	/* union_desc */
 #define USB_CDC_ETHERNET_TYPE		0x0f	/* ether_desc */
+
+#define USB_CDC_CALL_MGMT_CAP_CALL_MGMT 0x01
+#define USB_CDC_CALL_MGMT_CAP_DATA_INTF 0x02
+
+#define USB_CDC_COMM_FEATURE		0x01
+#define USB_CDC_CAP_LINE		0x02
+#define USB_CDC_CAP_BRK			0x04
+#define USB_CDC_CAP_NOTIFY		0x08
 
 #define USB_CDC_SEND_ENCAPSULATED_COMMAND	0x00
 #define USB_CDC_GET_ENCAPSULATED_RESPONSE	0x01
