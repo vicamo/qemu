@@ -26,11 +26,20 @@
 #define ACM_BUFSIZE  512
 
 typedef struct {
+    uint32_t dwDTERate;
+    uint8_t bCharFormat;
+    uint8_t bParityType;
+    uint8_t bDataBits;
+} QEMU_PACKED AcmLineCoding;
+
+typedef struct {
     /* qemu interfaces */
     USBDevice dev;
 
     uint8_t recv_buf[ACM_BUFSIZE];
     uint8_t *recv_ptr;
+
+    AcmLineCoding line_coding;
 
     /* properties */
     uint32_t debug;
@@ -241,6 +250,41 @@ static void usb_acm_cs_event(void *opaque, int event)
     }
 }
 
+static void usb_acm_set_line_coding(USBAcmState *s, AcmLineCoding *lc)
+{
+    QEMUSerialSetParams params;
+
+    params.speed = le32toh(lc->dwDTERate);
+
+    params.parity = '\0';
+    switch (lc->bParityType) {
+    case 0: params.parity = 'N'; break;
+    case 1: params.parity = 'O'; break;
+    case 2: params.parity = 'E'; break;
+    }
+
+    params.data_bits = 0;
+    switch (lc->bDataBits) {
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+        params.data_bits = lc->bDataBits;
+        break;
+    }
+
+    params.stop_bits = 0;
+    switch (lc->bCharFormat) {
+    case 0: params.stop_bits = 1; break;
+    case 2: params.stop_bits = 2; break;
+    }
+
+    if (lc != &s->line_coding
+            && qemu_chr_fe_ioctl(s->cs, CHR_IOCTL_SERIAL_SET_PARAMS, &params) == 0) {
+        memcpy(&s->line_coding, &lc, sizeof lc);
+    }
+}
+
 static void usb_acm_realize(USBDevice *dev, Error **errp)
 {
     USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
@@ -249,6 +293,11 @@ static void usb_acm_realize(USBDevice *dev, Error **errp)
     usb_desc_create_serial(dev);
     usb_desc_init(dev);
     s->dev.opaque = s;
+
+    s->line_coding.dwDTERate = htole32(115200);
+    s->line_coding.bCharFormat = 0;
+    s->line_coding.bParityType = 0;
+    s->line_coding.bDataBits = 8;
 
     if (!s->cs) {
         error_setg(errp, "Property chardev is required");
@@ -282,17 +331,52 @@ static void usb_acm_handle_attach(USBDevice *dev)
 
     if (!s->cs->be_open) {
         qemu_chr_fe_set_open(s->cs, 1);
+        usb_acm_set_line_coding(s, &s->line_coding);
     }
 }
+
+#define USB_CDC_SEND_ENCAPSULATED_COMMAND       0x00
+#define USB_CDC_GET_ENCAPSULATED_RESPONSE       0x01
+#define USB_CDC_REQ_SET_COMM_FEATURE            0x02
+#define USB_CDC_REQ_GET_COMM_FEATURE            0x03
+#define USB_CDC_REQ_CLEAR_COMM_FEATURE          0x04
+#define USB_CDC_REQ_SET_LINE_CODING             0x20
+#define USB_CDC_REQ_GET_LINE_CODING             0x21
+#define USB_CDC_REQ_SET_CONTROL_LINE_STATE      0x22
+#define USB_CDC_REQ_SEND_BREAK                  0x23
 
 static void usb_acm_handle_control(USBDevice *dev, USBPacket *p,
                int request, int value, int index, int length, uint8_t *data)
 {
     USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
     int ret;
+    AcmLineCoding lc;
 
     ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
     if (ret >= 0) {
+        return;
+    }
+
+    switch (request) {
+    case ClassInterfaceRequest | USB_CDC_REQ_GET_LINE_CODING:
+        if (length < sizeof s->line_coding) {
+            break;
+        }
+
+        memcpy(data, &s->line_coding, sizeof s->line_coding);
+        p->actual_length = sizeof s->line_coding;
+        return;
+
+    case ClassInterfaceOutRequest | USB_CDC_REQ_SET_LINE_CODING:
+        if (length < sizeof lc) {
+            break;
+        }
+
+        memcpy(&lc, data, sizeof lc);
+        usb_acm_set_line_coding(s, &lc);
+        return;
+
+    case ClassInterfaceOutRequest | USB_CDC_REQ_SET_CONTROL_LINE_STATE:
         return;
     }
 
@@ -306,6 +390,54 @@ static void usb_acm_handle_control(USBDevice *dev, USBPacket *p,
 static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
 {
     USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
+    int size, i, len;
+    struct iovec *iov;
+
+    switch (p->pid) {
+    case USB_TOKEN_IN:
+        switch (p->ep->nr) {
+        case ACM_EP_CTRL:
+            p->status = USB_RET_NAK;
+            return;
+
+        case ACM_EP_DATA_IN:
+            size = s->recv_ptr - s->recv_buf;
+            if (!size) {
+                p->status = USB_RET_NAK;
+                return;
+            }
+
+            usb_packet_copy(p, s->recv_buf, size);
+            s->recv_ptr = s->recv_buf;
+
+            qemu_chr_accept_input(s->cs);
+            return;
+        }
+        break;
+
+    case USB_TOKEN_OUT:
+        switch (p->ep->nr) {
+        case ACM_EP_DATA_OUT:
+            size = qemu_chr_be_can_write(s->cs);
+            if (!size) {
+                p->status = USB_RET_NAK;
+                return;
+            }
+
+            size = 0;
+            for (i = 0; i < p->iov.niov; i++) {
+                iov = p->iov.iov + i;
+                len = qemu_chr_fe_write(s->cs, iov->iov_base, iov->iov_len);
+                size += len;
+                if (len != iov->iov_len) {
+                    break;
+                }
+            }
+            p->actual_length = size;
+            return;
+        }
+        break;
+    }
 
     D("failed data transaction: pid 0x%x ep 0x%x len 0x%zx",
         p->pid, p->ep->nr, p->iov.size);
