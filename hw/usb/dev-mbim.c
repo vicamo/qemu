@@ -331,6 +331,49 @@ static const USBDesc desc_mbim = {
     .str   = usb_mbim_stringtable,
 };
 
+static void write_u16(uint8_t **out, uint32_t value)
+{
+    *(*out)++ = usb_lo(value);
+    *(*out)++ = usb_hi(value);
+}
+
+static void write_u32(uint8_t **out, uint32_t value)
+{
+    *(*out)++ = value & 0xff;
+    *(*out)++ = (value > 8) & 0xff;
+    *(*out)++ = (value > 16) & 0xff;
+    *(*out)++ = (value > 24) & 0xff;
+}
+
+/*
+ * Class-specific control requests
+ */
+
+#define USB_CDC_GET_NTB_PARAMETERS              0x80
+#define USB_CDC_SET_NTB_INPUT_SIZE              0x86
+
+static void usb_mbim_get_ntb_parameters(USBMbimState *s, USBPacket *p,
+                int index, int length, uint8_t *data)
+{
+    uint8_t *out = data;
+
+    write_u16(&out, 0x1c);   /* wLength */
+    write_u16(&out, 0x1);    /* bmNtbFormatsSupported */
+    write_u32(&out, 0x800);  /* dwNtbInMaxSize */
+    write_u16(&out, 0x4);    /* wNdpInDivisor */
+    write_u16(&out, 0x0);    /* wNdpInPayloadRemainder */
+    write_u16(&out, 0x4);    /* wNdpInAlignment */
+    write_u16(&out, 0x0);    /* wReserved */
+    write_u32(&out, 0x800);  /* dwNtbOutMaxSize */
+    write_u16(&out, 0x4);    /* wNdpOutDivisor */
+    write_u16(&out, 0x0);    /* wNdpOutPayloadRemainder */
+    write_u16(&out, 0x4);    /* wNdpOutAlignment */
+    write_u16(&out, 0x1);    /* wNtbOutMaxDatagrams */
+
+    p->actual_length = out - data;
+    assert(p->actual_length == 0x1c);
+}
+
 static void usb_mbim_realize(USBDevice *dev, Error **errp)
 {
     USBMbimState *s = DO_UPCAST(USBMbimState, dev, dev);
@@ -351,11 +394,22 @@ static void usb_mbim_handle_control(USBDevice *dev, USBPacket *p,
         return;
     }
 
-    D("failed control transaction: "
-        "request 0x%04x value 0x%04x index 0x%04x length 0x%04x",
-        request, value, index, length);
+    switch (request) {
+    case ClassInterfaceRequest | USB_CDC_GET_NTB_PARAMETERS:
+        usb_mbim_get_ntb_parameters(s, p, index, length, data);
+        break;
 
-    p->status = USB_RET_STALL;
+    case ClassInterfaceOutRequest | USB_CDC_SET_NTB_INPUT_SIZE:
+        break;
+
+    default:
+        D("failed control transaction: "
+            "request 0x%04x value 0x%04x index 0x%04x length 0x%04x",
+            request, value, index, length);
+
+        p->status = USB_RET_STALL;
+        break;
+    }
 }
 
 static void usb_mbim_handle_data(USBDevice *dev, USBPacket *p)
