@@ -25,7 +25,15 @@
 typedef struct {
     /* qemu interfaces */
     USBDevice dev;
+
+    /* properties */
+    uint32_t debug;
 } USBMbimState;
+
+#define D(fmt, ...)  \
+    if (s->debug) { \
+        fprintf(stderr, "usb-mbim: " fmt "\n", ##__VA_ARGS__); \
+    }
 
 enum {
     MBIM_IFACE_COMM = 0,
@@ -335,6 +343,7 @@ static void usb_mbim_realize(USBDevice *dev, Error **errp)
 static void usb_mbim_handle_control(USBDevice *dev, USBPacket *p,
                int request, int value, int index, int length, uint8_t *data)
 {
+    USBMbimState *s = DO_UPCAST(USBMbimState, dev, dev);
     int ret;
 
     ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
@@ -342,11 +351,20 @@ static void usb_mbim_handle_control(USBDevice *dev, USBPacket *p,
         return;
     }
 
+    D("failed control transaction: "
+        "request 0x%04x value 0x%04x index 0x%04x length 0x%04x",
+        request, value, index, length);
+
     p->status = USB_RET_STALL;
 }
 
 static void usb_mbim_handle_data(USBDevice *dev, USBPacket *p)
 {
+    USBMbimState *s = DO_UPCAST(USBMbimState, dev, dev);
+
+    D("failed data transaction: pid 0x%x ep 0x%x len 0x%zx",
+        p->pid, p->ep->nr, p->iov.size);
+
     p->status = USB_RET_STALL;
 }
 
@@ -355,12 +373,18 @@ static const VMStateDescription vmstate_usb_mbim = {
     .unmigratable = 1,
 };
 
+static Property usb_mbim_props[] = {
+    DEFINE_PROP_UINT32("debug", USBMbimState, debug, 0),
+    DEFINE_PROP_END_OF_LIST(),
+};
+
 static void usb_mbim_class_init(ObjectClass *klass, void *data)
 {
     DeviceClass *dc = DEVICE_CLASS(klass);
     USBDeviceClass *uc = USB_DEVICE_CLASS(klass);
 
     dc->vmsd           = &vmstate_usb_mbim;
+    dc->props          = usb_mbim_props;
     set_bit(DEVICE_CATEGORY_NETWORK, dc->categories);
 
     uc->product_desc   = "QEMU USB MBIM Interface";
