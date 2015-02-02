@@ -30,8 +30,8 @@ typedef struct {
 enum {
     MBIM_IFACE_COMM = 0,
     MBIM_IFACE_DATA,
-    VENDOR_IFACE_2,
-    VENDOR_IFACE_3,
+    ACM_IFACE_COMM,
+    ACM_IFACE_DATA,
     VENDOR_IFACE_4,
     VENDOR_IFACE_5,
     N_IFACES,
@@ -39,21 +39,21 @@ enum {
 
 enum {
     MBIM_EP_DATA_BULK = 1,
-    VENDOR_EP_2,
-    VENDOR_EP_3,
+    ACM_EP_COMM_BULK,
+    ACM_EP_DATA_BULK,
     VENDOR_EP_4,
     VENDOR_EP_5,
     UNUSED_EP_1,
-    VENDOR_EP_7,
+    ACM_EP_COMM_INT,
     MBIM_EP_COMM_INT,
 };
 
 enum {
     STRING_IFACE_MBIM_COMM = 1,
     STRING_IFACE_MBIM_DATA,
-    STRING_IFACE_2,
+    STRING_IFACE_ACM_COMM,
     STRING_UNUSED_1,
-    STRING_IFACE_3,
+    STRING_IFACE_ACM_DATA,
     STRING_IFACE_4,
     STRING_IFACE_5,
     STRING_UNUSED_2,
@@ -65,9 +65,9 @@ enum {
 static const USBDescStrings usb_mbim_stringtable = {
     [STRING_IFACE_MBIM_COMM]  = "COM(comm_if)",
     [STRING_IFACE_MBIM_DATA]  = "COM(data_if)",
-    [STRING_IFACE_2]          = "COM(comm_if)",
+    [STRING_IFACE_ACM_COMM]   = "COM(comm_if)",
     [STRING_UNUSED_1]         = "unused",
-    [STRING_IFACE_3]          = "COM(data_if)",
+    [STRING_IFACE_ACM_DATA]   = "COM(data_if)",
     [STRING_IFACE_4]          = "COM(data_if)",
     [STRING_IFACE_5]          = "COM(data_if)",
     [STRING_UNUSED_2]         = "unused",
@@ -167,69 +167,79 @@ static const USBDescIface desc_iface[] = {
             },
         },
     }, {
-        .bInterfaceNumber              = VENDOR_IFACE_2,
+        .bInterfaceNumber              = ACM_IFACE_COMM,
         .bNumEndpoints                 = 3,
         .bInterfaceClass               = USB_CLASS_VENDOR_SPEC,
-        .bInterfaceSubClass            = 0x02,
-        .bInterfaceProtocol            = 1,
-        .iInterface                    = STRING_IFACE_2,
+        .bInterfaceSubClass            = USB_CDC_SUBCLASS_ACM,
+        .bInterfaceProtocol            = USB_CDC_ACM_PROTO_AT_V25TER,
+        .iInterface                    = STRING_IFACE_ACM_COMM,
         .ndesc                         = 4,
         .descs = (USBDescOther[]) {
             {
                 .data = (uint8_t[]) {
                     0x05,                       /*  u8    bLength */
-                    0x24, 0x00, 0x10, 0x01,
+                    USB_DT_CS_INTERFACE,        /*  u8    bDescriptorType */
+                    USB_CDC_HEADER_TYPE,        /*  u8    bDescriptorSubType */
+                    0x10, 0x01,                 /*  le16  bcdCDC */
                 },
             }, {
                 .data = (uint8_t[]) {
                     0x04,                       /*  u8    bLength */
-                    0x24, 0x02, 0x0f,
+                    USB_DT_CS_INTERFACE,        /*  u8    bDescriptorType */
+                    USB_CDC_ACM_TYPE,           /*  u8    bDescriptorSubType */
+                    0x0f,                       /*  u8    bmCapabilities */
                 },
             }, {
                 .data = (uint8_t[]) {
                     0x05,                       /*  u8    bLength */
-                    0x24, 0x06, 0x02, 0x03,
+                    USB_DT_CS_INTERFACE,        /*  u8    bDescriptorType */
+                    USB_CDC_UNION_TYPE,         /*  u8    bDescriptorSubType */
+                    ACM_IFACE_COMM,             /*  u8    bMasterInterface0 */
+                    ACM_IFACE_DATA,             /*  u8    bSlaveInterface0 */
                 },
             }, {
                 .data = (uint8_t[]) {
                     0x05,                       /*  u8    bLength */
-                    0x24, 0x01, 0x03, 0x03,
+                    USB_DT_CS_INTERFACE,        /*  u8    bDescriptorType */
+                    USB_CDC_CALL_MANAGEMENT_TYPE, /*  u8    bDescriptorSubType */
+                    0x03,                       /*  u8    bmCapabilities */
+                    ACM_IFACE_DATA,             /*  u8    bDataInterface */
                 },
             },
         },
         .eps = (USBDescEndpoint[]) {
             {
-                .bEndpointAddress      = USB_DIR_IN | VENDOR_EP_7,
+                .bEndpointAddress      = USB_DIR_IN | ACM_EP_COMM_INT,
                 .bmAttributes          = USB_ENDPOINT_XFER_INT,
                 .wMaxPacketSize        = 64,
                 .bInterval             = 3,
             }, {
-                .bEndpointAddress      = USB_DIR_IN | VENDOR_EP_2,
+                .bEndpointAddress      = USB_DIR_IN | ACM_EP_COMM_BULK,
                 .bmAttributes          = USB_ENDPOINT_XFER_BULK,
                 .wMaxPacketSize        = 512,
                 .bInterval             = 0,
             }, {
-                .bEndpointAddress      = USB_DIR_OUT | VENDOR_EP_2,
+                .bEndpointAddress      = USB_DIR_OUT | ACM_EP_COMM_BULK,
                 .bmAttributes          = USB_ENDPOINT_XFER_BULK,
                 .wMaxPacketSize        = 512,
                 .bInterval             = 0,
             },
         },
     }, {
-        .bInterfaceNumber              = VENDOR_IFACE_3,
+        .bInterfaceNumber              = ACM_IFACE_DATA,
         .bNumEndpoints                 = 2,
         .bInterfaceClass               = USB_CLASS_VENDOR_SPEC,
         .bInterfaceSubClass            = 0,
         .bInterfaceProtocol            = 0,
-        .iInterface                    = STRING_IFACE_3,
+        .iInterface                    = STRING_IFACE_ACM_DATA,
         .eps = (USBDescEndpoint[]) {
             {
-                .bEndpointAddress      = USB_DIR_IN | VENDOR_EP_3,
+                .bEndpointAddress      = USB_DIR_IN | ACM_EP_DATA_BULK,
                 .bmAttributes          = USB_ENDPOINT_XFER_BULK,
                 .wMaxPacketSize        = 512,
                 .bInterval             = 0,
             }, {
-                .bEndpointAddress      = USB_DIR_OUT | VENDOR_EP_3,
+                .bEndpointAddress      = USB_DIR_OUT | ACM_EP_DATA_BULK,
                 .bmAttributes          = USB_ENDPOINT_XFER_BULK,
                 .wMaxPacketSize        = 512,
                 .bInterval             = 0,
