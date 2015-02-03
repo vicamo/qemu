@@ -61,20 +61,6 @@ enum usbstring_idx {
 #define DEV_CONFIG_VALUE		1	/* CDC or a subset */
 #define DEV_RNDIS_CONFIG_VALUE		2	/* RNDIS; optional */
 
-#define USB_CDC_SUBCLASS_ACM		0x02
-#define USB_CDC_SUBCLASS_ETHERNET	0x06
-
-#define USB_CDC_PROTO_NONE		0
-#define USB_CDC_ACM_PROTO_VENDOR	0xff
-
-#define USB_CDC_HEADER_TYPE		0x00	/* header_desc */
-#define USB_CDC_CALL_MANAGEMENT_TYPE	0x01	/* call_mgmt_descriptor */
-#define USB_CDC_ACM_TYPE		0x02	/* acm_descriptor */
-#define USB_CDC_UNION_TYPE		0x06	/* union_desc */
-#define USB_CDC_ETHERNET_TYPE		0x0f	/* ether_desc */
-
-#define USB_CDC_SEND_ENCAPSULATED_COMMAND	0x00
-#define USB_CDC_GET_ENCAPSULATED_RESPONSE	0x01
 #define USB_CDC_REQ_SET_LINE_CODING		0x20
 #define USB_CDC_REQ_GET_LINE_CODING		0x21
 #define USB_CDC_REQ_SET_CONTROL_LINE_STATE	0x22

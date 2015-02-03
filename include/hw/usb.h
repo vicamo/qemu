@@ -85,6 +85,21 @@
 #define USB_SUBCLASS_AUDIO_STREAMING    2
 #define USB_SUBCLASS_AUDIO_MIDISTREAMING 3
 
+#define USB_CDC_SUBCLASS_ACM		0x02
+#define USB_CDC_SUBCLASS_ETHERNET	0x06
+
+#define USB_CDC_PROTO_NONE		0
+#define USB_CDC_ACM_PROTO_VENDOR	0xff
+
+#define USB_CDC_HEADER_TYPE		0x00	/* header_desc */
+#define USB_CDC_CALL_MANAGEMENT_TYPE	0x01	/* call_mgmt_descriptor */
+#define USB_CDC_ACM_TYPE		0x02	/* acm_descriptor */
+#define USB_CDC_UNION_TYPE		0x06	/* union_desc */
+#define USB_CDC_ETHERNET_TYPE		0x0f	/* ether_desc */
+
+#define USB_CDC_SEND_ENCAPSULATED_COMMAND	0x00
+#define USB_CDC_GET_ENCAPSULATED_RESPONSE	0x01
+
 #define USB_DIR_OUT			0
 #define USB_DIR_IN			0x80
 
