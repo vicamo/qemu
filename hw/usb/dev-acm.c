@@ -21,6 +21,7 @@
 #include "hw/usb.h"
 #include "hw/usb/desc.h"
 #include "hw/hw.h"
+#include "sysemu/char.h"
 
 #define ACM_BUFSIZE  512
 
@@ -28,8 +29,12 @@ typedef struct {
     /* qemu interfaces */
     USBDevice dev;
 
+    uint8_t recv_buf[ACM_BUFSIZE];
+    uint8_t *recv_ptr;
+
     /* properties */
     uint32_t debug;
+    CharDriverState *cs;
 } USBAcmState;
 
 #define D(fmt, ...)  \
@@ -191,13 +196,93 @@ static const USBDesc desc_acm = {
     .str   = usb_acm_stringtable,
 };
 
+static void usb_acm_handle_reset(USBDevice *dev);
+
+static int usb_acm_cs_can_read(void *opaque)
+{
+    USBAcmState *s = opaque;
+    int ret;
+
+    if (!s->dev.attached) {
+        ret = 0;
+    } else {
+        ret = ACM_BUFSIZE - (s->recv_ptr - s->recv_buf);
+    }
+
+    D("%s: %d", __FUNCTION__, ret);
+    return ret;
+}
+
+static void usb_acm_cs_read(void *opaque, const uint8_t *buf, int size)
+{
+    USBAcmState *s = opaque;
+
+    D("%s: %d", __FUNCTION__, size);
+    memcpy(s->recv_ptr, buf, size);
+    s->recv_ptr += size;
+}
+
+static void usb_acm_cs_event(void *opaque, int event)
+{
+    USBAcmState *s = opaque;
+
+    switch (event) {
+    case CHR_EVENT_OPENED:
+        if (!s->dev.attached) {
+            usb_device_attach(&s->dev, &error_abort);
+        }
+        break;
+
+    case CHR_EVENT_CLOSED:
+        if (s->dev.attached) {
+            usb_device_detach(&s->dev);
+        }
+        break;
+    }
+}
+
 static void usb_acm_realize(USBDevice *dev, Error **errp)
 {
     USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
+    Error *local_err = NULL;
 
     usb_desc_create_serial(dev);
     usb_desc_init(dev);
     s->dev.opaque = s;
+
+    if (!s->cs) {
+        error_setg(errp, "Property chardev is required");
+        return;
+    }
+
+    usb_check_attach(dev, &local_err);
+    if (local_err) {
+        error_propagate(errp, local_err);
+        return;
+    }
+
+    usb_acm_handle_reset(dev);
+
+    qemu_chr_add_handlers(s->cs, usb_acm_cs_can_read, usb_acm_cs_read,
+                          usb_acm_cs_event, s);
+    /*
+     * qemu_chr_add_handlers may open backend chardev and cause current
+     * device being attached, so we set auto_attach to 0 if already opened.
+     */
+    if (dev->attached) {
+        dev->auto_attach = 0;
+    }
+}
+
+static void usb_acm_handle_attach(USBDevice *dev)
+{
+    USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
+
+    usb_desc_attach(dev);
+
+    if (!s->cs->be_open) {
+        qemu_chr_fe_set_open(s->cs, 1);
+    }
 }
 
 static void usb_acm_handle_control(USBDevice *dev, USBPacket *p,
@@ -228,6 +313,13 @@ static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
     p->status = USB_RET_STALL;
 }
 
+static void usb_acm_handle_reset(USBDevice *dev)
+{
+    USBAcmState *s = DO_UPCAST(USBAcmState, dev, dev);
+
+    s->recv_ptr = s->recv_buf;
+}
+
 static const VMStateDescription vmstate_usb_acm = {
     .name         = "usb-acm",
     .unmigratable = 1,
@@ -235,6 +327,7 @@ static const VMStateDescription vmstate_usb_acm = {
 
 static Property usb_acm_props[] = {
     DEFINE_PROP_UINT32("debug", USBAcmState, debug, 0),
+    DEFINE_PROP_CHR("chardev", USBAcmState, cs),
     DEFINE_PROP_END_OF_LIST(),
 };
 
@@ -250,9 +343,10 @@ static void usb_acm_class_init(ObjectClass *klass, void *data)
     uc->product_desc   = "QEMU USB ACM Interface";
     uc->usb_desc       = &desc_acm;
     uc->realize        = usb_acm_realize;
-    uc->handle_attach  = usb_desc_attach;
+    uc->handle_attach  = usb_acm_handle_attach;
     uc->handle_control = usb_acm_handle_control;
     uc->handle_data    = usb_acm_handle_data;
+    uc->handle_reset   = usb_acm_handle_reset;
 }
 
 static const TypeInfo usb_acm_info = {
