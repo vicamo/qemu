@@ -368,4 +368,8 @@ typedef CharDriverState *(VcHandler)(ChardevVC *vc);
 
 void register_vc_handler(VcHandler *handler);
 CharDriverState *vc_init(ChardevVC *vc);
+
+/* atmodem.c */
+CharDriverState *qemu_chr_open_atmodem(void);
+
 #endif

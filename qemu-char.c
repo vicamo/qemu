@@ -3329,6 +3329,7 @@ QemuOpts *qemu_chr_parse_compat(const char *label, const char *filename)
         strcmp(filename, "msmouse") == 0 ||
         strcmp(filename, "braille") == 0 ||
         strcmp(filename, "testdev") == 0 ||
+        strcmp(filename, "atmodem") == 0 ||
         strcmp(filename, "stdio")   == 0) {
         qemu_opt_set(opts, "backend", filename);
         return opts;
@@ -4285,6 +4286,9 @@ ChardevReturn *qmp_chardev_add(const char *id, ChardevBackend *backend,
     case CHARDEV_BACKEND_KIND_MEMORY:
         chr = qemu_chr_open_ringbuf(backend->ringbuf, errp);
         break;
+    case CHARDEV_BACKEND_KIND_ATMODEM:
+        chr = qemu_chr_open_atmodem();
+        break;
     default:
         error_setg(errp, "unknown chardev backend (%d)", backend->kind);
         break;
@@ -4359,6 +4363,7 @@ static void register_types(void)
     register_char_driver("pipe", CHARDEV_BACKEND_KIND_PIPE,
                          qemu_chr_parse_pipe);
     register_char_driver("mux", CHARDEV_BACKEND_KIND_MUX, qemu_chr_parse_mux);
+    register_char_driver("atmodem", CHARDEV_BACKEND_KIND_ATMODEM, NULL);
     /* Bug-compatibility: */
     register_char_driver("memory", CHARDEV_BACKEND_KIND_MEMORY,
                          qemu_chr_parse_ringbuf);

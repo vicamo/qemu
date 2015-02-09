@@ -2838,7 +2838,7 @@
 #
 # Configuration info for the new chardev backend.
 #
-# Since: 1.4 (testdev since 2.2)
+# Since: 1.4 (testdev since 2.2, atmodem since 2.3)
 ##
 { 'type': 'ChardevDummy', 'data': { } }
 
@@ -2860,6 +2860,7 @@
                                        'spiceport' : 'ChardevSpicePort',
                                        'vc'     : 'ChardevVC',
                                        'ringbuf': 'ChardevRingbuf',
+                                       'atmodem': 'ChardevDummy',
                                        # next one is just for compatibility
                                        'memory' : 'ChardevRingbuf' } }
 
