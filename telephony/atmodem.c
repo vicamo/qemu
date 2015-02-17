@@ -27,7 +27,7 @@
 #include "qemu-common.h"
 #include "sysemu/char.h"
 
-#define DEBUG_ATMODEM 0
+#define DEBUG_ATMODEM 1
 
 #ifndef min
 #define min(a, b) ((a) < (b) ? (a) : (b))
@@ -154,7 +154,7 @@ static int atmodem_chr_write(CharDriverState *chr, const uint8_t *buf, int len)
     AtModemCharDriver *drv = (AtModemCharDriver *)chr->opaque;
     int n, written = 0;
 
-#if 0
+#if 1
     qemu_hexdump((char *)buf, stderr, "[>", len);
 #endif
 
@@ -248,10 +248,27 @@ static void atmodem_respond(AtModemCharDriver *drv, const char *fmt, ...)
     va_end(ap);
 }
 
+static int handle_at(AtModemCharDriver *drv, char *cmd, char *content)
+{
+    D("%s", __PRETTY_FUNCTION__);
+    atmodem_respond(drv, "OK");
+    return 0;
+}
+
+static int handle_dial(AtModemCharDriver *drv, char *cmd, char *content)
+{
+    D("%s", __PRETTY_FUNCTION__);
+    atmodem_respond(drv, "OK");
+    return 0;
+}
+
 static const struct {
     const char *cmd;
     AtCommandHandler handler;
 } cmds_table[] = {
+    { "^D", handle_dial },
+    { "", handle_at },
+
     { NULL }
 };
 
