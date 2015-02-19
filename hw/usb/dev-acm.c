@@ -352,6 +352,10 @@ static void usb_acm_handle_control(USBDevice *dev, USBPacket *p,
     int ret;
     AcmLineCoding lc;
 
+    D("control transaction: "
+        "request 0x%04x value 0x%04x index 0x%04x length 0x%04x",
+        request, value, index, length);
+
     ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
     if (ret >= 0) {
         return;
@@ -398,12 +402,14 @@ static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
         switch (p->ep->nr) {
         case ACM_EP_CTRL:
             p->status = USB_RET_NAK;
+            D("data transaction: pid 0x%x ep 0x%x NAK", p->pid, p->ep->nr);
             return;
 
         case ACM_EP_DATA_IN:
             size = s->recv_ptr - s->recv_buf;
             if (!size) {
                 p->status = USB_RET_NAK;
+                D("data transaction: pid 0x%x ep 0x%x NAK", p->pid, p->ep->nr);
                 return;
             }
 
@@ -411,6 +417,9 @@ static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
             s->recv_ptr = s->recv_buf;
 
             qemu_chr_accept_input(s->cs);
+
+            D("data transaction: pid 0x%x ep 0x%x in %d",
+                 p->pid, p->ep->nr, size);
             return;
         }
         break;
@@ -421,6 +430,7 @@ static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
             size = qemu_chr_be_can_write(s->cs);
             if (!size) {
                 p->status = USB_RET_NAK;
+                D("data transaction: pid 0x%x ep 0x%x NAK", p->pid, p->ep->nr);
                 return;
             }
 
@@ -434,6 +444,9 @@ static void usb_acm_handle_data(USBDevice *dev, USBPacket *p)
                 }
             }
             p->actual_length = size;
+
+            D("data transaction: pid 0x%x ep 0x%x, out %d",
+                p->pid, p->ep->nr, size);
             return;
         }
         break;
